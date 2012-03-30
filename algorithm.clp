@@ -36,12 +36,13 @@
   (assert (metric ?name underlayment ?underlayment)))
 
 (defrule reduce-metrics
-  (metric ?name&:(stringp ?name) water ?water&:(floatp ?water))
-  (metric ?name soil ?soil&:(floatp ?soil))
-  (metric ?name surface ?surface&:(floatp ?surface))
-  (metric ?name humus ?humus&:(floatp ?humus))
-  (metric ?name underlayment ?underlayment&:(floatp ?underlayment))
+  ?namem <- (metric ?name&:(stringp ?name) water ?water&:(floatp ?water))
+  ?soilm <- (metric ?name soil ?soil&:(floatp ?soil))
+  ?surfacem <- (metric ?name surface ?surface&:(floatp ?surface))
+  ?humusm <- (metric ?name humus ?humus&:(floatp ?humus))
+  ?underlaymentm <- (metric ?name underlayment ?underlayment&:(floatp ?underlayment))
   =>
+  (retract ?namem ?soilm ?surfacem ?humusm ?underlaymentm)
   (assert 
     (land-digits
       (name ?name)
@@ -52,7 +53,7 @@
       (underlayment ?underlayment))))
 
 (defrule land-reduce-metrics
-  (land-digits
+  ?digits <- (land-digits
     (name ?name)
     (water ?water)
     (soil ?soil)
@@ -60,83 +61,38 @@
     (humus ?humus)
     (underlayment ?underlayment))
   =>
+  (retract ?digits)
   (assert 
     (land-coef 
       (name ?name)
         (coef (+ (/ (+ ?water ?soil ?surface) 3) 
                  (/ (+ ?humus ?underlayment) 2)) ))))
 
+
+(defrule constant-replace
+   ?m <- (metric ?name&:(stringp ?name) ?category ?type) 
+   (mapping ?category&:(symbolp ?category) ?type&:(symbolp ?type) ?value&:(floatp ?value))
+   => (retract ?m) (assert (metric ?name ?category ?value)))
+
 ;; ruleset for characteristics:
 ;;   water, soil, surface, humus, underlayment
-
-;; water rules
-(defrule water-throughout
-  (metric ?name&:(stringp ?name) water throughout) 
-  => (assert (metric ?name water 0.75)))
-
-(defrule water-nothoughout
-  (metric ?name&:(stringp ?name) water nothroughout) 
-  => (assert (metric ?name water 0.65)))
-
-(defrule water-dry
-  (metric ?name&:(stringp ?name) water dry) 
-  => (assert (metric ?name water 0.2)))
-
-;; soil rules
-(defrule soil-big
-  (metric ?name&:(stringp ?name) soil big) 
-  => (assert (metric ?name soil 0.3)))
-
-(defrule soil-nut
-  (metric ?name&:(stringp ?name) soil nut) 
-  => (assert (metric ?name soil 0.25)))
-
-(defrule soil-tiles
-  (metric ?name&:(stringp ?name) soil tiles) 
-  => (assert (metric ?name soil 0.75)))
-
-;; surface
-(defrule surface-granular
-  (metric ?name&:(stringp ?name) surface granular) 
-  => (assert (metric ?name surface 0.15)))
-
-(defrule surface-corticial
-  (metric ?name&:(stringp ?name) surface corticial) 
-  => (assert (metric ?name surface 0.7)))
-
-(defrule surface-cracked
-  (metric ?name&:(stringp ?name) surface cracked) 
-  => (assert (metric ?name surface 0.8)))
-
-;; humus
-(defrule humus-thick
-  (metric ?name&:(stringp ?name) humus thick) 
-  => (assert (metric ?name humus 0.95)))
-
-(defrule humus-mthick
-  (metric ?name&:(stringp ?name) humus mthick) 
-  => (assert (metric ?name humus 0.8)))
-
-(defrule humus-mthin
-  (metric ?name&:(stringp ?name) humus mthin) 
-  => (assert (metric ?name humus 0.5)))
-
-(defrule humus-thin
-  (metric ?name&:(stringp ?name) humus thin) 
-  => (assert (metric ?name humus 0.15)))
-
-;; underlayment
-(defrule underlayment-thick
-  (metric ?name&:(stringp ?name) underlayment thick) 
-  => (assert (metric ?name underlayment 0.85)))
-
-(defrule underlayment-medium
-  (metric ?name&:(stringp ?name) underlayment medium) 
-  => (assert (metric ?name underlayment 0.5)))
-
-(defrule underlayment-thin
-  (metric ?name&:(stringp ?name) underlayment thin) 
-  => (assert (metric ?name underlayment 0.1)))
+(deffacts type-mappings
+  (mapping water throughout 0.75)
+  (mapping water nothroughout 0.65)
+  (mapping water dry 0.2)
+  (mapping soil big 0.3)
+  (mapping soil nut 0.25)
+  (mapping soil tiles 0.75)
+  (mapping surface granular 0.15)
+  (mapping surface corticial 0.7)
+  (mapping surface cracked 0.8)
+  (mapping humus thick 0.95)
+  (mapping humus mthick 0.8)
+  (mapping humus mthin 0.5)
+  (mapping humus thin 0.15)
+  (mapping underlayment thick 0.85)
+  (mapping underlayment medium 0.5)
+  (mapping underlayment thin 0.1))
 
 
 
