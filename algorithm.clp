@@ -17,6 +17,11 @@
 (deftemplate land-coef
   (slot name (default ?NONE) (type STRING))
   (slot coef (default ?NONE) (type FLOAT)))
+  
+(deftemplate land-minimum-candidate
+  (slot name (default ?NONE) (type STRING))
+  (slot coef (default ?NONE) (type FLOAT)))
+
 
 
 ;; generic mapping rules
@@ -94,6 +99,18 @@
   (mapping underlayment medium 0.5)
   (mapping underlayment thin 0.1))
 
+
+(defrule gen-minimum-candidate
+  ?land <- (land-coef (name ?name) (coef ?coef))
+  => (assert (land-minimum-candidate (name ?name) (coef ?coef))))
+
+(defrule reduce-minimum
+  ?land1 <- (land-minimum-candidate (coef ?c1))
+  ?land2 <- (land-minimum-candidate (coef ?c2))
+  (test(neq ?land1 ?land2))
+  (test(>= ?c1 ?c2))
+  =>
+  (retract ?land1))
 
 
 
