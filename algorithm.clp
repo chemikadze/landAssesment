@@ -1,9 +1,12 @@
+(defglobal ?*low-priority* = -5)
+
 (deftemplate land
   (slot name (default ?NONE) (type STRING))
   (slot water (default ?NONE) (type SYMBOL))
   (slot soil (default ?NONE) (type SYMBOL))
   (slot surface (default ?NONE) (type SYMBOL))
   (slot humus (default ?NONE) (type SYMBOL))
+  (slot square (default ?NONE) (type FLOAT))
   (slot underlayment (default ?NONE) (type SYMBOL)))
 
 (deftemplate land-digits
@@ -21,7 +24,8 @@
 (deftemplate land-maximum-candidate
   (slot name (default ?NONE) (type STRING))
   (slot berry-of-choice (default ?NONE) (type STRING))
-  (slot profit (default ?NONE) (type FLOAT)))
+  (slot profit (default ?NONE) (type FLOAT))
+  (slot checked (default FALSE) (type SYMBOL)))
   
 (deftemplate berry 
   (slot name (default ?NONE) (type STRING))
@@ -126,8 +130,9 @@
   (berry (name ?bname) 
     (raw-cost ?rcost) (jam-cost ?jcost) (raw-pdk ?pdk)
     (leaves-pdk ?lpdk) (leaves-pdk-reduction ?reduction))
+  (land (name ?lname) (square ?square))
   =>
-  (bind ?output (if (> ?lpollut ?lpdk) then ?reduction else 1))
+  (bind ?output (* (if (> ?lpollut ?lpdk) then ?reduction else 1) ?square))
   (retract ?binding)
   (assert (berry-profit 
             (name ?bname) (land-name ?lname)
@@ -144,12 +149,23 @@
   (assert (land-maximum-candidate (name ?lname) (berry-of-choice ?name1) (profit ?profit1))))
 
 (defrule reduce-maximum-candidate
-  ?land1 <- (land-maximum-candidate (profit ?p1))
-  ?land2 <- (land-maximum-candidate (profit ?p2))
+  ?land1 <- (land-maximum-candidate (profit ?p1) (name ?name) (berry-of-choice ?berry))
+  ?land2 <- (land-maximum-candidate (profit ?p2) (name ?name))
   (test(neq ?land1 ?land2))
-  (test(<= ?p1 ?p2))
+  (test(< ?p1 ?p2))
   =>
   (retract ?land1))
+
+(defrule select-maximum-candidate
+  (declare (salience ?*low-priority*))
+  ?land1 <- (land-maximum-candidate (profit ?p1) (checked FALSE) (name ?name1) (berry-of-choice ?berry))
+  ?land2 <- (land-maximum-candidate (profit ?p2) (checked FALSE) (name ?name2))
+  (test(neq ?land1 ?land2))
+  (test(neq ?name1 ?name2))
+  (test(< ?p1 ?p2))
+  =>
+  (retract ?land1)
+  (assert (land-maximum-candidate (profit ?p1) (checked TRUE) (name ?name1) (berry-of-choice ?berry))))
 
 
 ;; ruleset for characteristics:
