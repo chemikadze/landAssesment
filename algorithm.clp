@@ -18,11 +18,45 @@
   (slot name (default ?NONE) (type STRING))
   (slot coef (default ?NONE) (type FLOAT)))
   
-(deftemplate land-minimum-candidate
+(deftemplate land-maximum-candidate
   (slot name (default ?NONE) (type STRING))
-  (slot coef (default ?NONE) (type FLOAT)))
+  (slot berry-of-choice (default ?NONE) (type STRING))
+  (slot profit (default ?NONE) (type FLOAT)))
+  
+(deftemplate berry 
+  (slot name (default ?NONE) (type STRING))
+  (slot raw-cost (default ?NONE) (type FLOAT))
+  (slot jam-cost (default ?NONE) (type FLOAT))
+  (slot fruit-coef (default ?NONE) (type FLOAT))
+  (slot leaves-coef (default ?NONE) (type FLOAT))
+  (slot raw-pdk (default ?NONE) (type FLOAT))
+  (slot leaves-pdk (default ?NONE) (type FLOAT))
+  (slot leaves-pdk-reduction (default ?NONE) (type FLOAT)))
+
+(deftemplate berry-land
+  (slot name (default ?NONE) (type STRING))
+  (slot land-name (default ?NONE) (type STRING))
+  (slot leaves-pollution (default ?NONE) (type FLOAT))
+  (slot fruit-pollution (default ?NONE) (type FLOAT)))
+
+(deftemplate berry-profit
+  (slot name (default ?NONE) (type STRING))
+  (slot land-name (default ?NONE) (type STRING))
+  (slot profit (default ?NONE) (type FLOAT)))
 
 
+
+;; basic formulas
+(deffunction pollution-coefficient
+  (?water ?soil ?surface ?humus ?underlayment)
+  (+ (/ (+ ?water ?soil ?surface) 3) 
+                 (/ (+ ?humus ?underlayment) 2)))
+                 
+(deffunction guard
+  (?condition ?value)
+  (if (eq ?condition TRUE)
+   then ?value
+   else 0.0))
 
 ;; generic mapping rules
 (defrule land-metric-defs
@@ -70,14 +104,53 @@
   (assert 
     (land-coef 
       (name ?name)
-        (coef (+ (/ (+ ?water ?soil ?surface) 3) 
-                 (/ (+ ?humus ?underlayment) 2)) ))))
-
+      (coef (pollution-coefficient ?water ?soil ?surface ?humus ?underlayment)))))
 
 (defrule constant-replace
    ?m <- (metric ?name&:(stringp ?name) ?category ?type) 
    (mapping ?category&:(symbolp ?category) ?type&:(symbolp ?type) ?value&:(floatp ?value))
    => (retract ?m) (assert (metric ?name ?category ?value)))
+
+(defrule bind-berry-land
+  (land-coef (name ?name) (coef ?coef))
+  (berry (name ?bname)
+              (fruit-coef ?fcoef) (leaves-coef ?lcoef))
+  => (assert (berry-land 
+               (name ?bname) (land-name ?name) 
+               (leaves-pollution (* ?fcoef ?coef))
+               (fruit-pollution (* ?lcoef ?coef)))))
+
+(defrule berry-perspective
+  ?binding <- (berry-land (name ?bname) (land-name ?lname) 
+    (leaves-pollution ?lpollut) (fruit-pollution ?fpollut))
+  (berry (name ?bname) 
+    (raw-cost ?rcost) (jam-cost ?jcost) (raw-pdk ?pdk)
+    (leaves-pdk ?lpdk) (leaves-pdk-reduction ?reduction))
+  =>
+  (bind ?output (if (> ?lpollut ?lpdk) then ?reduction else 1))
+  (retract ?binding)
+  (assert (berry-profit 
+            (name ?bname) (land-name ?lname)
+            (profit (max 
+                      (guard (< ?fpollut ?pdk) (* ?rcost ?output))
+                      (guard (< (/ ?fpollut 2.0) ?pdk) (* ?jcost ?output)))))))
+
+(defrule choose-berries
+  ?b1 <- (berry-profit (name ?name1) (land-name ?lname) (profit ?profit1))
+  ?b2 <-(berry-profit (name ?name2) (land-name ?lname) (profit ?profit2))
+  (test(>= ?profit1 ?profit2))
+  =>
+  (retract ?b1 ?b2)
+  (assert (land-maximum-candidate (name ?lname) (berry-of-choice ?name1) (profit ?profit1))))
+
+(defrule reduce-maximum-candidate
+  ?land1 <- (land-maximum-candidate (profit ?p1))
+  ?land2 <- (land-maximum-candidate (profit ?p2))
+  (test(neq ?land1 ?land2))
+  (test(<= ?p1 ?p2))
+  =>
+  (retract ?land1))
+
 
 ;; ruleset for characteristics:
 ;;   water, soil, surface, humus, underlayment
@@ -98,23 +171,18 @@
   (mapping underlayment thick 0.85)
   (mapping underlayment medium 0.5)
   (mapping underlayment thin 0.1))
+  
 
-
-(defrule gen-minimum-candidate
-  ?land <- (land-coef (name ?name) (coef ?coef))
-  => (assert (land-minimum-candidate (name ?name) (coef ?coef))))
-
-(defrule reduce-minimum
-  ?land1 <- (land-minimum-candidate (coef ?c1))
-  ?land2 <- (land-minimum-candidate (coef ?c2))
-  (test(neq ?land1 ?land2))
-  (test(>= ?c1 ?c2))
-  =>
-  (retract ?land1))
-
-
-
-
-
-
-
+(deffacts berries
+  (berry 
+  	(name "strawberry")
+	(raw-cost 500.0) (jam-cost 250.0)
+	(fruit-coef 0.3) (leaves-coef 0.35)
+	(raw-pdk 0.2) (leaves-pdk 0.25)
+	(leaves-pdk-reduction 0.0))
+  (berry 
+  	(name "currant")
+	(raw-cost 400.0) (jam-cost 300.0)
+	(fruit-coef 0.15) (leaves-coef 0.45)
+	(raw-pdk 0.3) (leaves-pdk 0.4)
+	(leaves-pdk-reduction 0.5)))
