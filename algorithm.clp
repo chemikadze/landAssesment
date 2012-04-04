@@ -41,7 +41,8 @@
   (slot name (default ?NONE) (type STRING))
   (slot land-name (default ?NONE) (type STRING))
   (slot leaves-pollution (default ?NONE) (type FLOAT))
-  (slot fruit-pollution (default ?NONE) (type FLOAT)))
+  (slot fruit-pollution (default ?NONE) (type FLOAT))
+  (slot amount (default -1.0) (type FLOAT)))
 
 (deftemplate berry-profit
   (slot name (default ?NONE) (type STRING))
@@ -124,21 +125,69 @@
                (leaves-pollution (* ?fcoef ?coef))
                (fruit-pollution (* ?lcoef ?coef)))))
 
-(defrule berry-perspective
-  ?binding <- (berry-land (name ?bname) (land-name ?lname) 
-    (leaves-pollution ?lpollut) (fruit-pollution ?fpollut))
-  (berry (name ?bname) 
-    (raw-cost ?rcost) (jam-cost ?jcost) (raw-pdk ?pdk)
-    (leaves-pdk ?lpdk) (leaves-pdk-reduction ?reduction))
+
+;;
+;; rules to detect berry perspectives
+;;
+(defrule berry-perspective-amount-reduction
+  ?binding <- (berry-land (name ?bname) (land-name ?lname) (leaves-pollution ?lpollut) (amount -1.0))
+  (berry (name ?bname) (leaves-pdk ?lpdk) (leaves-pdk-reduction ?reduction))
   (land (name ?lname) (square ?square))
+  (test (> ?lpollut ?lpdk))
   =>
-  (bind ?output (* (if (> ?lpollut ?lpdk) then ?reduction else 1) ?square))
+  (modify ?binding (amount (* ?square ?reduction))))
+
+(defrule berry-perspective-amount-all
+  ?binding <- (berry-land (name ?bname) (land-name ?lname) (leaves-pollution ?lpollut) (amount -1.0))
+  (berry (name ?bname) (leaves-pdk ?lpdk) (leaves-pdk-reduction ?reduction))
+  (land (name ?lname) (square ?square))
+  (test (<= ?lpollut ?lpdk))
+  =>
+  (modify ?binding (amount (* ?square 1))))
+                      
+(defrule berry-perspective-all
+  ?binding <- (berry-land 
+    (name ?bname) (land-name ?lname) (fruit-pollution ?fpollut) (amount ?amount))
+  (berry (name ?bname) 
+    (raw-cost ?rcost) (jam-cost ?jcost) (raw-pdk ?pdk))
+  (land (name ?lname) (square ?square))
+  (test (< ?fpollut ?pdk))
+  (test (neq ?amount -1.0))
+  =>
   (retract ?binding)
   (assert (berry-profit 
             (name ?bname) (land-name ?lname)
-            (profit (max 
-                      (guard (< ?fpollut ?pdk) (* ?rcost ?output))
-                      (guard (< (/ ?fpollut 2.0) ?pdk) (* ?jcost ?output)))))))
+            (profit (max (* ?rcost ?amount) (* ?jcost ?amount))))))                     
+
+(defrule berry-perspective-jam-only
+  ?binding <- (berry-land 
+    (name ?bname) (land-name ?lname) (fruit-pollution ?fpollut) (amount ?amount))
+  (berry (name ?bname) 
+    (raw-cost ?rcost) (jam-cost ?jcost) (raw-pdk ?pdk))
+  (land (name ?lname) (square ?square))
+  (test (neq ?amount -1.0))
+  (test (> ?fpollut ?pdk))
+  (test (<= (/ ?fpollut 2.0) ?pdk))
+  =>
+  (retract ?binding)
+  (assert (berry-profit 
+            (name ?bname) (land-name ?lname)
+            (profit (* ?jcost ?amount)))))                      
+
+(defrule berry-perspective-no
+  ?binding <- (berry-land 
+    (name ?bname) (land-name ?lname) (fruit-pollution ?fpollut) (amount ?amount))
+  (berry (name ?bname) 
+    (raw-cost ?rcost) (jam-cost ?jcost) (raw-pdk ?pdk))
+  (land (name ?lname) (square ?square))
+  (test (neq ?amount -1.0))
+  (test (> (* ?fpollut 2.0) ?pdk))
+  =>
+  (retract ?binding)
+  (assert (berry-profit 
+            (name ?bname) (land-name ?lname)
+            (profit 0.0))))
+
 
 (defrule choose-berries
   ?b1 <- (berry-profit (name ?name1) (land-name ?lname) (profit ?profit1))
@@ -200,5 +249,5 @@
   	(name "currant")
 	(raw-cost 400.0) (jam-cost 300.0)
 	(fruit-coef 0.15) (leaves-coef 0.45)
-	(raw-pdk 0.3) (leaves-pdk 0.4)
+	(raw-pdk 0.5) (leaves-pdk 0.4)
 	(leaves-pdk-reduction 0.5)))
