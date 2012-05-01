@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         layout = QGridLayout()
         layout.addWidget(self._recordView, 0, 0)
         self.setCentralWidget(self._recordView)
-        self.resize(500, 300)
+        self.resize(600, 300)
 
     def newRecord(self):
         edit = LandEdit(parent=self)
@@ -93,24 +93,38 @@ class MainWindow(QMainWindow):
         clips.Reset()
         template = clips.FindTemplate("land")
         for i in xrange(self._recordView.topLevelItemCount()):
-            record = QVariant(self._recordView.topLevelItem(i).data(0, Qt.UserRole)).toPyObject()
+            item = self._recordView.topLevelItem(i)
+            record = QVariant(item.data(0, Qt.UserRole)).toPyObject()
+            item.takeChildren()
             assertion = record.clipsFact(template)
             assertion.Assert()
         clips.Run()
         for fact in clips.FactList():
-            if fact.Relation != 'land-maximum-candidate':
-                continue
-            item = self.itemForName(fact.Slots["name"])
-            if item is None:
-                raise RuntimeError("Algorithm error: can not find record")
-            record = QVariant(item.data(0, Qt.UserRole)).toPyObject()
-            record.berry_of_choice = fact.Slots["berry-of-choice"]
-            record.profit = fact.Slots["profit"]
-            self.doUpdateItem(item, record)
-            if fact.Slots["checked"] == "FALSE": # max indicator
-                item.setBackgroundColor(item.columnCount()-1, COOL_COLOR)
-            else:
-                item.setBackgroundColor(item.columnCount()-1, NORMAL_COLOR)
+            if fact.Relation == 'land-maximum-candidate':
+                item = self.itemForName(fact.Slots["name"])
+                if item is None:
+                    raise RuntimeError("Algorithm error: can not find record")
+                record = QVariant(item.data(0, Qt.UserRole)).toPyObject()
+                record.berry_of_choice = fact.Slots["berry-of-choice"]
+                record.profit = fact.Slots["profit"]
+                self.doUpdateItem(item, record)
+                if fact.Slots["checked"] == "FALSE": # max indicator
+                    item.setBackgroundColor(item.columnCount()-1, COOL_COLOR)
+                else:
+                    item.setBackgroundColor(item.columnCount()-1, NORMAL_COLOR)
+            elif fact.Relation == 'berry-profit-option':
+                item = self.itemForName(fact.Slots["land-name"])
+                if item is None:
+                    raise RuntimeError("Algorithm error: can not find record")
+                newItem = QTreeWidgetItem()
+                pos = len(self.recordLabels) - 2
+                newItem.setText(pos, "%s (%s)" %
+                                     (str(fact.Slots["name"]), str(fact.Slots["method"])))
+                newItem.setText(pos + 1, str(fact.Slots["profit"]))
+                item.addChild(newItem)
+        self._recordView.expandAll()
+        for i in xrange(self._recordView.columnCount()):
+            self._recordView.resizeColumnToContents(i)
 
     def doAddRecord(self, record):
         row = self._recordView.topLevelItemCount()

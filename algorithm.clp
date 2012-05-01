@@ -44,6 +44,13 @@
   (slot fruit-pollution (default ?NONE) (type FLOAT))
   (slot amount (default -1.0) (type FLOAT)))
 
+;; just for information purpose
+(deftemplate berry-profit-option
+  (slot name (default ?NONE) (type STRING))
+  (slot land-name (default ?NONE) (type STRING))
+  (slot method (default ?NONE) (type STRING))
+  (slot profit (default ?NONE) (type FLOAT)))
+
 (deftemplate berry-profit
   (slot name (default ?NONE) (type STRING))
   (slot land-name (default ?NONE) (type STRING))
@@ -157,7 +164,13 @@
   (retract ?binding)
   (assert (berry-profit 
             (name ?bname) (land-name ?lname)
-            (profit (max (* ?rcost ?amount) (* ?jcost ?amount))))))                     
+            (profit (max (* ?rcost ?amount) (* ?jcost ?amount))))
+          (berry-profit-option
+            (name ?bname) (land-name ?lname) (method "raw")
+            (profit (* ?rcost ?amount)))
+          (berry-profit-option
+            (name ?bname) (land-name ?lname) (method "jam")
+            (profit (* ?jcost ?amount)))))
 
 (defrule berry-perspective-jam-only
   ?binding <- (berry-land 
@@ -172,7 +185,10 @@
   (retract ?binding)
   (assert (berry-profit 
             (name ?bname) (land-name ?lname)
-            (profit (* ?jcost ?amount)))))                      
+            (profit (* ?jcost ?amount)))
+          (berry-profit-option
+            (name ?bname) (land-name ?lname) (method "jam")
+            (profit (* ?jcost ?amount)))))
 
 (defrule berry-perspective-no
   ?binding <- (berry-land 
